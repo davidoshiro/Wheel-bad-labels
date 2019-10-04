@@ -1,0 +1,40 @@
+key_trigger {
+  input: KEY_ESC
+  action: "quit"
+}
+key_trigger {
+  input: KEY_BACKSPACE
+  action: "backspace"
+}
+key_trigger {
+  input: KEY_TAB
+  action: "tab"
+}
+key_trigger {
+  input: KEY_LEFT
+  action: "prev"
+}
+key_trigger {
+  input: KEY_RIGHT
+  action: "next"
+}
+key_trigger {
+  input: KEY_SPACE
+  action: "spin"
+}
+key_trigger {
+  input: KEY_R
+  action: "reload"
+}
+key_trigger {
+  input: KEY_L
+  action: "logout"
+}
+mouse_trigger {
+  input: MOUSE_BUTTON_1
+  action: "click"
+}
+text_trigger {
+  input: TEXT
+  action: "text_input"
+}

@@ -1,0 +1,94 @@
+--
+-- main:/main#controller
+--
+
+function init(self)
+	-- Add initialization code here
+	-- Remove this function if not needed
+	pprint("main:/main#controller.init")
+	WINDOW_HEIGHT = 1080
+	WINDOW_WIDTH = 1920
+	APP_NAME = "Wheel 1080 - labels error"
+	gEnv = "development"
+	gScenes = {play = false}
+	gGame = {}
+	gEntries = json.decode('[{"id":89,"full_name":"Sebastian Warner","wheel_name":"Sebastian\n Warner","email":"Sebastian_Warner@myemailserver.com","phone":null,"is_active":true},{"id":82,"full_name":"Shyla Burton","wheel_name":"Shyla\n Burton","email":"Shyla_Burton@myemailserver.com","phone":null,"is_active":true},{"id":16,"full_name":"Sidney Mays","wheel_name":"Sidney\n Mays","email":"Sidney_Mays@myemailserver.com","phone":null,"is_active":true},{"id":36,"full_name":"Susan Fritz","wheel_name":"Susan\n Fritz","email":"Susan_Fritz@myemailserver.com","phone":null,"is_active":true},{"id":15,"full_name":"Susan Shepard","wheel_name":"Susan\n Shepard","email":"Susan_Shepard@myemailserver.com","phone":null,"is_active":true},{"id":22,"full_name":"Sylvia  Ali","wheel_name":"Sylvia \n Ali","email":"Sylvia_Ali@myemailserver.com","phone":"","is_active":true},{"id":98,"full_name":"Taliyah Ritter","wheel_name":"Taliyah\n Ritter","email":"Taliyah_Ritter@myemailserver.com","phone":null,"is_active":true},{"id":55,"full_name":"Teagan Sanders","wheel_name":"Teagan\n Sanders","email":"Teagan_Sanders@myemailserver.com","phone":null,"is_active":true},{"id":21,"full_name":"Titus Mcintyre","wheel_name":"Titus\n Mcintyre","email":"Titus_Mcintyre@myemailserver.com","phone":null,"is_active":true},{"id":19,"full_name":"Tripp Sosa","wheel_name":"Tripp\n Sosa","email":"Tripp_Sosa@myemailserver.com","phone":null,"is_active":true},{"id":27,"full_name":"Tucker Lamb","wheel_name":"Tucker\n Lamb","email":"Tucker_Lamb@myemailserver.com","phone":null,"is_active":true},{"id":79,"full_name":"Tyson Haney","wheel_name":"Tyson\n Haney","email":"Tyson_Haney@myemailserver.com","phone":null,"is_active":true},{"id":20,"full_name":"Valery Yates","wheel_name":"Valery\n Yates","email":"Valery_Yates@myemailserver.com","phone":null,"is_active":true},{"id":87,"full_name":"Walker Francis","wheel_name":"Walker\n Francis","email":"Walker_Francis@myemailserver.com","phone":null,"is_active":true},{"id":7,"full_name":"Willow Forbes","wheel_name":"Willow\n Forbes","email":"Willow_Forbes@myemailserver.com","phone":null,"is_active":true},{"id":23,"full_name":"Zoe Erickson","wheel_name":"Zoe\n Erickson","email":"Zoe_Erickson@myemailserver.com","phone":null,"is_active":true}]')
+	gPrizes = {}
+	gReloadScene = nil
+	self.proxy_message = {}
+	msg.post(".", "acquire_input_focus")
+
+	-- Show cursor in full screen
+	defos.set_cursor_visible(true)
+	defos.toggle_fullscreen()
+	local ICON_NAMES = {
+		["windows"] = "enterprize_logo.ico"
+	}
+	if ICON_NAMES["windows"] then
+		defos.set_window_icon(defos.get_bundle_root() .. defos.PATH_SEP .. ICON_NAMES["windows"])
+	end
+	
+	-- play animated_logo
+	msg.post("#animated_logo", "play_animation", {id=hash("animated_logo_tiles")})
+
+	msg.post(".", "proxy_load", {scene = "play"})
+	
+end
+
+function final(self)
+	-- Add finalization code here
+	-- Remove this function if not needed
+	msg.post(".", "release_input_focus")
+end
+
+function update(self, dt)
+	-- Add update code here
+	-- Remove this function if not needed
+end
+
+function on_message(self, message_id, message, sender)
+	-- Add message-handling code here
+	-- Remove this function if not needed
+	if message_id == hash("proxy_load") then
+		msg.post("#proxy_" .. message.scene, "load")
+		self.proxy_message = message
+		pprint("main:/main#controller.on_message --> message:")
+		pprint(message)
+	elseif message_id == hash("proxy_unload") then
+		msg.post("#proxy_" .. message.scene, "disable")
+		msg.post("#proxy_" .. message.scene, "final")
+		msg.post("#proxy_" .. message.scene, "unload")
+		if message.reload then
+			gReloadScene = true
+			gScenes.play = true
+		end
+	elseif message_id == hash("proxy_reload") then
+		gReloadScene = message.scene
+		msg.post(".", "proxy_unload", {scene = message.scene})
+	elseif message_id == hash("proxy_loaded") then
+		pprint("Proxy Loaded")
+		msg.post(sender, "init")
+		msg.post(sender, "enable")
+	elseif message_id == hash("proxy_unloaded") then
+		if gReloadScene ~= nil then
+			msg.post(".", "proxy_load", {scene = gReloadScene})
+			gReloadScene = nil
+		end
+	elseif message_id == hash("quit") then
+		msg.post("@system:", "exit", {code = 0})
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here
+	-- Remove this function if not needed
+	if action_id == hash("quit") and action.pressed then
+		print("ESC pressed.")
+		msg.post(".", "quit")
+	end
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Remove this function if not needed
+end

@@ -1,0 +1,305 @@
+--
+-- play:/play#controller
+--
+
+function init(self)
+	-- Add initialization code here
+	-- Remove this function if not needed
+	pprint("play:/play#controller")
+	self.game_id = gGame.id
+	self.current_user = {}
+	self.is_logged_in = false
+	self.entry_height = 150
+	self.entries_total = 0
+	self.wheel_height = 0
+	self.light_timer = 0
+	self.light_switch = true
+	self.entries_go_table = {}
+	self.entries_go_table2 = {}
+	self.is_spinning = {0, 0}
+	self.fast_spin_timer = 0
+	self.spin_count = 0
+	self.entry_size = vmath.vector3(720, self.entry_height, 0)
+	self.selected_entry = {}
+	self.slow_speed = 200
+	self.fast_speed = 2500
+	self.cur_speed = self.fast_speed
+	self.slow_spin = false
+	self.fast_spin = false
+	self.fast_easing = {1, .8, .6, .4, .2, .1, .05, 0, 0, 0}
+	self.cur_fast_easing = 1
+	self.cur_prize = {}
+	self.is_done = false
+	self.playing_boop = false
+	gScenes.play = true
+	msg.post(".", "acquire_input_focus")
+	msg.post("#debug", "disable")
+	populate_wheel(self)
+end
+
+function final(self)
+	-- Add finalization code here
+	-- Remove this function if not needed
+	msg.post(".", "release_input_focus")
+	gScenes.play = false
+end
+
+function update(self, dt)
+	-- Add update code here
+	-- Remove this function if not needed
+	self.light_timer = self.light_timer + dt
+	-- animate lights
+	if self.light_timer > 1 then
+		self.light_switch = flip_lights(self)
+		--sprite.set_vflip("#wheel_lights_1", self.light_switch)
+		--sprite.set_vflip("#wheel_lights_2", self.light_switch)
+		self.light_timer = 0
+	end
+
+	-- if top of spinning entries reaches top of window, start spinning next set of entries.
+	local i,v
+	if self.spin_count > 0 and self.is_spinning ~= {0,0} then
+		if self.slow_spin then
+			update_spin(self, self.slow_speed)
+		elseif self.fast_spin then
+			self.fast_spin_timer = self.fast_spin_timer + dt
+			
+			if self.fast_spin_timer > 2 and #self.fast_easing > 0 then
+				-- cancel spin animation
+				go.cancel_animations(self.entries_go_table[1].id, "position.y")
+				go.cancel_animations(self.entries_go_table2[1].id, "position.y")
+				
+				self.cur_speed = self.fast_speed * self.fast_easing[1]
+				print("---> fast speed: " .. self.fast_speed)
+				print("---> cur speed: " .. self.cur_speed)
+				table.remove(self.fast_easing, 1)
+				self.fast_spin_timer = 0
+				spin(self, self.cur_speed, -self.wheel_height)
+			elseif #self.fast_easing == 0 and not self.is_done then
+				self.is_done = true
+				print("--> Done Spinning")
+				-- pprint(self.cur_prize)
+				-- pprint(self.selected_entry)
+				msg.post("main:/main", "proxy_load", {scene = "winner", prize_id = self.cur_prize.id, entry_id = self.selected_entry.id})
+				msg.post("main:/main", "proxy_unload", {scene = "play"})
+			else
+				update_spin(self, self.cur_speed)
+			end
+		end
+	end
+
+	-- debug
+	if self.is_spinning[1] > 0 or self.is_spinning[2] > 0 then
+		local table1_pos = go.get_position(self.entries_go_table[1].id)
+		local table2_pos = go.get_position(self.entries_go_table2[1].id)
+		msg.post("#debug", "set_vars", {
+			table1_pos = "(" .. table1_pos.x .. ", " .. table1_pos.y .. ", " .. table1_pos.z .. ")",
+			table2_pos = "(" .. table2_pos.x .. ", " .. table2_pos.y .. ", " .. table2_pos.z .. ")",
+			slow_spin = self.slow_spin and "true" or "false",
+			fast_spin = self.fast_spin and "true" or "false",
+			spinning = self.is_spinning[1] .. ", " .. self.is_spinning[2],
+			spin_count = self.spin_count, 
+			fast_easing = #self.fast_easing,
+			cur_prize = self.cur_prize.title
+		})
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	-- Add message-handling code here
+	-- Remove this function if not needed
+	if message_id == hash("process_data") then
+		msg.post("#gui", "load_prizes")
+		msg.post("#gui", "load_branding", {game = gGame})
+		msg.post("#", "set_prize", {prize_id = 1})
+		populate_wheel(self)
+	end
+	if message_id == hash("get_data_error") then
+		-- pprint(self.http_msg)
+	end
+	if message_id == hash("slow_spin") then
+		if self.slow_spin == false and self.fast_spin == false then
+			self.slow_spin = true
+			self.fast_spin = false
+			spin(self, self.slow_speed, -self.wheel_height)
+		end
+	end
+	if message_id == hash("click_on_spin") then
+		if self.fast_spin == false and self.slow_spin == true then
+			self.slow_spin = false
+			self.fast_spin = true
+			spin(self, self.cur_speed, -self.wheel_height)
+		end
+	end
+	if message_id == hash("selected_entry") then
+		self.selected_entry = message.entry
+	end
+	if message_id == hash("booping") then
+		if not self.playing_boop and self.fast_spin then
+			self.playing_boop = true
+			msg.post("#booping", "play_sound", { gain = message.gain })
+		end
+	end
+	if message_id == hash("boop") then
+		if not self.playing_boop then
+			msg.post("#boop", "play_sound", { gain = message.gain })
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here
+	-- Remove this function if not needed
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Remove this function if not needed
+end
+
+function populate_wheel(self)
+	pprint("play:/play#controller.populate_wheel")
+	local cur_count = 0
+	local entry_id, entry_id2
+	-- set 1
+	for k,v in ipairs(gEntries) do
+		if v.is_active then
+			entry_id = factory.create("#entry_factory", vmath.vector3(0, cur_count*self.entry_height, 0))
+			entry_id2 = factory.create("#entry_factory", vmath.vector3(0, cur_count*self.entry_height,0))
+			table.insert(self.entries_go_table, {id = entry_id, full_name = v.wheel_name})
+			table.insert(self.entries_go_table2, {id = entry_id2, full_name = v.wheel_name})
+			msg.post(entry_id, "set_props", {entry = gEntries[k]})
+			msg.post(entry_id2, "set_props", {entry = gEntries[k]})
+			-- msg.post(entry_id2, "change_color")
+			if cur_count > 0 then
+				go.set_parent(entry_id, self.entries_go_table[1].id)
+				go.set_parent(entry_id2, self.entries_go_table2[1].id)
+			end
+			cur_count = cur_count + 1
+		end
+		-- pprint(k, v.id, v.email, v.is_active, v.full_name)
+		-- if cur_count == 14 then break end
+	end
+	self.entries_total = cur_count
+	self.wheel_height = self.entry_height * self.entries_total
+	-- position entries2 at top of screen
+	go.set_position(vmath.vector3(0, 0, 0), self.entries_go_table[1].id)
+	go.set_position(vmath.vector3(0, 1080, 0), self.entries_go_table2[1].id)
+	print("---> First entry: " .. gEntries[1].wheel_name)
+	print("---> Last entry: " .. gEntries[14].wheel_name)
+	print("---> Total Entries: " .. #gEntries)
+	local my_file_path = sys.get_save_file(APP_NAME, "entries")
+	sys.save(my_file_path, gEntries)
+	set_entry_bg_color(self)
+	msg.post(".", "slow_spin", {speed = self.slow_speed, stop_at = -self.wheel_height})
+end
+
+function flip_lights(self)
+	-- pprint("play:/play#controller.flip_lights")
+	if self.light_switch then
+		return false
+	else
+		return true
+	end
+end
+
+function spin_entries(self, parent_id, speed, stop_at)
+	pprint("play:/play#controller.spin_entries")
+	if stop_at == nil then stop_at = -self.wheel_height end
+	-- get pos of parent
+	local pos = go.get_position(parent_id)
+	local duration = math.abs(pos.y - stop_at) / speed
+	go.animate(parent_id, "position.y", go.PLAYBACK_ONCE_FORWARD, stop_at, go.EASING_LINEAR, duration, 0, complete_spin)
+	self.spin_count = self.spin_count + 1
+end
+
+function spin(self, speed, stop_at)
+	pprint("play:/play#controller.spin")
+	if speed == nil then speed = self.slow_speed end
+	if stop_at == nil then stop_at = -self.wheel_height end
+	
+	local pos1 = go.get_position(self.entries_go_table[1].id)
+	local pos2 = go.get_position(self.entries_go_table2[1].id)
+	-- pprint("play:/play#controller.spin --> pos1 = " .. pos1.y .. ", pos2.y = " .. pos2.y)
+	
+	-- select table to spin
+	if self.is_spinning == {0,0} then
+		print("---> First Spin")
+		self.is_spinning[1] = 1
+		spin_entries(self, self.entries_go_table[1].id, speed, stop_at)
+		-- pprint("play:/play#controller.spin --> Spinning table 1")
+	else
+		if self.fast_spin then
+			print("Fast Spin")
+			if self.is_spinning[1] == 1 and self.is_spinning[2] == 1 then
+				self.spin_count = self.spin_count - 2
+				spin_entries(self, self.entries_go_table[1].id, speed, stop_at)
+				spin_entries(self, self.entries_go_table2[1].id, speed, stop_at)
+			elseif self.is_spinning[1] == 1 and self.is_spinning[2] == 0 then
+				self.spin_count = self.spin_count - 1
+				spin_entries(self, self.entries_go_table[1].id, speed, stop_at)
+			elseif self.is_spinning[1] == 0 and self.is_spinning[2] == 1 then
+				self.spin_count = self.spin_count - 1
+				spin_entries(self, self.entries_go_table2[1].id, speed, stop_at)
+			end
+		elseif self.slow_spin then
+			print("---> Slow Spin")
+			self.is_spinning[1] = 1
+			spin_entries(self, self.entries_go_table[1].id, speed, stop_at)
+		end
+	end
+end
+
+function update_spin(self, speed)
+	-- pprint("play:/play#controller.update_spin")
+	local parent_id
+	local pos1, pos2
+	local start_next_at
+	if start_next_at == nil then start_next_at = WINDOW_HEIGHT - self.wheel_height end
+	if speed == nil then speed = self.slow_speed end
+	local stop_at = -self.wheel_height
+
+	pos1 = go.get_position(self.entries_go_table[1].id)
+	pos2 = go.get_position(self.entries_go_table2[1].id)
+		
+	if self.is_spinning[2] == 0 and math.floor(pos1.y) <= start_next_at then
+		spin_entries(self, self.entries_go_table2[1].id, speed, nil)
+		self.is_spinning[2] = 1
+	end
+	if self.is_spinning[1] == 0 and math.floor(pos2.y) <= start_next_at then
+		spin_entries(self, self.entries_go_table[1].id, speed, nil)
+		self.is_spinning[1] = 1
+	end
+end
+
+function complete_spin(self)
+	print("play:/play#controller.complete_spin")
+	if self.spin_count == 1 then
+		go.set_position(vmath.vector3(0, WINDOW_HEIGHT, 0), self.entries_go_table[1].id)
+		self.is_spinning[1] = 0
+		-- pprint("complete_spin: table 1 positioned at " .. WINDOW_HEIGHT)
+	elseif self.spin_count > 1 and self.spin_count % 2 == 0 then
+		go.set_position(vmath.vector3(0, WINDOW_HEIGHT, 0), self.entries_go_table[1].id)
+		self.is_spinning[1] = 0
+		-- pprint("complete_spin: table 1 positioned at " .. WINDOW_HEIGHT)
+	elseif self.spin_count > 1 and self.spin_count % 2 == 1 then
+		go.set_position(vmath.vector3(0, WINDOW_HEIGHT, 0), self.entries_go_table2[1].id)
+		self.is_spinning[2] = 0
+		-- pprint("complete_spin: table 2 positioned at " .. WINDOW_HEIGHT)
+	end
+end
+
+function set_entry_bg_color(self)
+	print("play:/play#controller.set_entry_bg_color")
+	local counter = 1
+	local id
+	while counter <= #self.entries_go_table * 2 do
+		if counter <= #self.entries_go_table then
+			id = self.entries_go_table[counter].id
+		else
+			id = self.entries_go_table2[counter-#self.entries_go_table].id
+		end
+		msg.post(id, "set_entry_bg_color", {counter = counter})
+		counter = counter + 1
+	end
+end

@@ -1,0 +1,84 @@
+function init(self)
+	-- Add initialization code here
+	-- Remove this function if not needed
+	self.height = go.get("#label_box", "size.y")
+	self.half_height = self.height/2
+	self.window_middle = WINDOW_HEIGHT/2
+	self.near_middle = false
+	self.entry = {}
+	self.sounds = {}
+end
+
+function final(self)
+	-- Add finalization code here
+	-- Remove this function if not needed
+end
+
+function update(self, dt)
+	-- Add update code here
+	-- Remove this function if not needed
+	-- increase size of object if at middle of screen
+	-- local id = msg.url(go.get_id())
+	local pos
+	pos = go.get_world_position()
+
+	if pos.y < (self.window_middle) and pos.y > (self.window_middle - self.height) then
+		if not self.near_middle then
+			self.near_middle = true
+			go.set("#label", "color", vmath.vector4(1.0,0,0,1.0))
+		end
+	else
+		if self.near_middle then
+			self.near_middle = false
+			go.set("#label", "color", vmath.vector4(1,1,1,1.0))
+		end
+	end
+	-- Count down the stored timers
+	for k,_ in pairs(self.sounds) do
+		self.sounds[k] = self.sounds[k] - dt
+		if self.sounds[k] < 0 then
+			self.sounds[k] = nil
+		end
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	-- Add message-handling code here
+	-- Remove this function if not needed
+	-- Set label text
+	if message_id == hash("set_props") then
+		self.entry = message.entry
+		label.set_text("#label", self.entry.wheel_name)
+	end
+	if message_id == hash("change_color") then
+		go.set("#label", "color.y", 1)
+	end
+	if message_id == hash("reset_color") then
+		go.set("#label", "color.y", 0)
+	end
+	if message_id == hash("trigger_response") then
+		if message.enter then 
+			msg.post("play:/play#boop", "play_sound", {gain = 1})
+			msg.post("play:/play#PlayController", "selected_entry", {entry = self.entry})
+		end
+	end
+	if message_id == hash("set_entry_bg_color") then
+		if message.counter % 2 == 1 then
+			msg.post("#label_bg1", "enable")
+			msg.post("#label_bg2", "disable")
+		else
+			msg.post("#label_bg1", "disable")
+			msg.post("#label_bg2", "enable")
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here
+	-- Remove this function if not needed
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Remove this function if not needed
+end

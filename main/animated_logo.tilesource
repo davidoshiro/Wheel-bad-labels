@@ -1,0 +1,19 @@
+image: "/shared/images/main_logo_spritesheet.png"
+tile_width: 400
+tile_height: 400
+tile_margin: 0
+tile_spacing: 0
+collision: ""
+material_tag: "tile"
+collision_groups: "animated_logo"
+animations {
+  id: "animated_logo_tiles"
+  start_tile: 1
+  end_tile: 18
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 5
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+extrude_borders: 0
+inner_padding: 0

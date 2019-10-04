@@ -1,0 +1,33 @@
+images {
+  image: "/shared/images/play_background.png"
+}
+images {
+  image: "/shared/images/next_prize_btn.png"
+}
+images {
+  image: "/shared/images/prev_prize_btn.png"
+}
+images {
+  image: "/shared/images/label2.png"
+}
+images {
+  image: "/shared/images/wheel_arrow_left.png"
+}
+images {
+  image: "/shared/images/wheel_arrow_right.png"
+}
+images {
+  image: "/shared/images/label1.png"
+}
+images {
+  image: "/shared/images/default_prize.png"
+}
+images {
+  image: "/shared/images/wheel_mask_left.png"
+}
+images {
+  image: "/shared/images/wheel_mask_right.png"
+}
+margin: 0
+extrude_borders: 2
+inner_padding: 0

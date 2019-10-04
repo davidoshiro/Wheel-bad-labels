@@ -1,0 +1,199 @@
+--
+-- play:/play#gui
+--
+function init(self)
+	-- Add initialization code here
+	-- Remove this function if not needed
+	print("play:/play#gui.init")
+	self.spin_btn_hovered = false
+	self.prizes = {}
+	self.cur_prize_index = 1
+	self.textures = {}
+	msg.post(".", "acquire_input_focus")
+end
+
+function final(self)
+	-- Add finalization code here
+	-- Remove this function if not needed
+	msg.post(".", "release_input_focus")
+end
+
+function update(self, dt)
+	-- Add update code here
+	-- Remove this function if not needed
+end
+
+function on_message(self, message_id, message, sender)
+	-- Add message-handling code here
+	-- Remove this function if not needed
+	if message_id == hash("load_branding") then
+		print("play:/play#gui.on_message ---> Load Branding")
+		local branding_node = gui.get_node("branding")
+		http.request(gAPI.url .. message.game.image_url, "GET", function(self, id, res)
+			if res.status ~= 200 and res.status ~= 304 then
+				print("Unable to get image", res.response)
+				return
+			end
+
+			local img = image.load(res.response)
+			if not img then
+				print("Unable to load image")
+				return
+			end
+
+			local texture_id = "branding_texture"
+			if gui.new_texture(texture_id, img.width, img.height, img.type, img.buffer) then
+				gui.set_texture(branding_node, texture_id)
+			else
+				print("Unable to create texture")
+			end
+		end
+		)
+	elseif message_id == hash("load_prizes") then
+		print("play:/play#gui.on_message ---> Load Prizes")
+		self.prizes = gPrizes
+		local node = gui.get_node("prize_image")
+		local n_prize_title = gui.get_node("prize_title")
+		for i,v in ipairs(self.prizes) do
+			if i == 1 then
+				self.prizes[i]["node"] = node
+				load_and_set_texture(self, gAPI.url .. self.prizes[i].image_url, node, i)
+				gui.set_text(n_prize_title, self.prizes[i].title)
+				gui.set_enabled(node, true)
+			else
+				self.prizes[i]["node"] = gui.clone(node)
+				load_and_set_texture(self, gAPI.url .. self.prizes[i].image_url, self.prizes[i]["node"], i)
+				gui.set_enabled(self.prizes[i]["node"], false)
+			end
+			self.cur_prize_index = 1
+		end
+		-- pprint(self.prizes)
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Add input-handling code here
+	-- Remove this function if not needed
+	local color = require("convertcolor")
+	local spin_btn = gui.get_node("spin_button")
+	local spin_button_color = vmath.vector3(color.hex("104964"))
+	local spin_button_color_hover = vmath.vector3(color.hex("96d8e5"))
+	local spin_btn_label = gui.get_node("spin_button_label")
+	local spin_button_label_color = vmath.vector3(color.hex("ffffff"))
+	local spin_button_label_color_hover = vmath.vector3(color.hex("104964"))
+	local spin_button = gui.get_node("spin_button")
+	local prev_prize = gui.get_node("prev_prize")
+	local next_prize = gui.get_node("next_prize")
+	local prize_title = gui.get_node("prize_title")
+	
+	if gui.pick_node(spin_btn, action.x, action.y) and not self.spin_btn_hovered then
+		gui.set_color(spin_btn, spin_button_color_hover)
+		gui.set_color(spin_btn_label, spin_button_label_color_hover)
+		self.spin_btn_hovered = true
+	elseif not gui.pick_node(spin_btn, action.x, action.y) and self.spin_btn_hovered then
+		gui.set_color(spin_btn, spin_button_color)
+		gui.set_color(spin_btn_label, spin_button_label_color)
+		self.spin_btn_hovered = false
+	end
+	-- keyboard actions
+	if action_id == hash("spin") and action.repeated then
+		msg.post("/play#PlayController", "click_on_spin")
+	elseif action_id == hash("prev") and action.repeated then
+		if self.cur_prize_index > 1 then
+			self.cur_prize_index = self.cur_prize_index - 1
+			gui.set_enabled(self.prizes[self.cur_prize_index + 1]["node"], false)
+			gui.set_enabled(self.prizes[self.cur_prize_index]["node"], true)
+			gui.set_text(prize_title, self.prizes[self.cur_prize_index]["title"])
+			msg.post("#PlayController", "set_prize", {prize_id = self.cur_prize_index})
+		end
+	elseif action_id == hash("next") and action.repeated then
+		if self.cur_prize_index < #self.prizes then
+			self.cur_prize_index = self.cur_prize_index + 1
+			gui.set_enabled(self.prizes[self.cur_prize_index - 1]["node"], false)
+			gui.set_enabled(self.prizes[self.cur_prize_index]["node"], true)
+			gui.set_text(prize_title, self.prizes[self.cur_prize_index]["title"])
+			msg.post("#PlayController", "set_prize", {prize_id = self.cur_prize_index})
+		end
+	elseif action_id == hash("reload") and action.repeated then
+		msg.post("main:/main", "proxy_reload", {scene = "play"})
+	elseif action_id == hash("backspace") and action.repeated then
+		msg.post("main:/main", "proxy_unload", {scene = "play"})
+		msg.post("main:/main", "proxy_load", {scene = "select_game"})
+	elseif action_id == hash("logout") and action.repeated then
+		msg.post("main:/main", "proxy_unload", {scene = "play"})
+		msg.post("main:/main", "proxy_load", {scene = "login"})
+	end
+
+	-- mouse clicks
+	if action_id == hash("click") and action.pressed then
+		if gui.pick_node(spin_button, action.x, action.y) then 
+			print("play:/play#gui.init --> Spin Button pressed.")
+			msg.post("/play#PlayController", "click_on_spin")
+		elseif gui.pick_node(prev_prize, action.x, action.y) then
+			if self.cur_prize_index > 1 then
+				self.cur_prize_index = self.cur_prize_index - 1
+				gui.set_enabled(self.prizes[self.cur_prize_index + 1]["node"], false)
+				gui.set_enabled(self.prizes[self.cur_prize_index]["node"], true)
+				gui.set_text(prize_title, self.prizes[self.cur_prize_index]["title"])
+				msg.post("#PlayController", "set_prize", {prize_id = self.cur_prize_index})
+			end
+		elseif gui.pick_node(next_prize, action.x, action.y) then
+			if self.cur_prize_index < #self.prizes then
+				self.cur_prize_index = self.cur_prize_index + 1
+				gui.set_enabled(self.prizes[self.cur_prize_index - 1]["node"], false)
+				gui.set_enabled(self.prizes[self.cur_prize_index]["node"], true)
+				gui.set_text(prize_title, self.prizes[self.cur_prize_index]["title"])
+				msg.post("#PlayController", "set_prize", {prize_id = self.cur_prize_index})
+			end
+		end
+	end
+end
+
+function on_reload(self)
+	-- Add input-handling code here
+	-- Remove this function if not needed
+end
+
+function load_and_set_texture(self, url, node, prize_index)
+	http.request(url, "GET", function(self, id, res)
+		if res.status ~= 200 and res.status ~= 304 then
+			print("Unable to get image", res.response)
+			return
+		end
+
+		local img = image.load(res.response)
+		if not img then
+			print("Unable to load image")
+			return
+		end
+
+		local found_texture = find_texture(self.textures, url)
+		if found_texture > 0 then
+			gui.set_texture(node, self.textures[found_texture])
+			-- print("Set texture " .. url .. " for " .. prize_index)
+		else
+			if gui.new_texture(url, img.width, img.height, img.type, img.buffer) then
+				-- check to see if texture already exists
+				local found_texture = find_texture(self.textures, url)
+				table.insert(self.textures, url)
+				gui.set_texture(node, url)
+
+				-- print("Set texture " .. url .. " for " .. prize_index)
+			else
+				print("Unable to create texture: " .. url)
+			end
+		end
+	end
+	)
+end
+
+function find_texture(list, texture)
+	local i,v
+	local result = 0
+	for i,v in pairs(list) do
+		if v == texture then
+			result = i
+		end
+	end
+	return result
+end
